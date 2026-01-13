@@ -4,6 +4,7 @@ export const API_ENDPOINTS = {
     LOGOUT: '/auth/logout',
     REGISTER: '/auth/register',
     ME: '/auth/me',
+    CHANGE_PASSWORD: '/auth/change-password',
   },
   FEATURES: {
     LIST: '/features',
@@ -20,5 +21,15 @@ export const API_ENDPOINTS = {
     DETAIL: (id: string) => `/users/${id}`,
     UPDATE: (id: string) => `/users/${id}`,
     DELETE: (id: string) => `/users/${id}`,
+  },
+  URBAN_OBJECTS: {
+    LIST: '/urban-objects',
+    CREATE: '/urban-objects',
+    DETAIL: (id: string) => `/urban-objects/${id}`,
+    UPDATE: (id: string) => `/urban-objects/${id}`,
+    DELETE: (id: string) => `/urban-objects/${id}`,
+    LODS: (id: string) => `/urban-objects/${id}/lods`,
+    LOD_DETAIL: (id: string, lodId: string) => `/urban-objects/${id}/lods/${lodId}`,
+    TYPES_DROPDOWN: '/urban-objects/types/dropdown',
   },
 };

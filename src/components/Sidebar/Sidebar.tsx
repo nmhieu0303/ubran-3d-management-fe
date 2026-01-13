@@ -50,14 +50,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const { user, isAuthenticated } = useAuthStore();
 
   const menuItems = [
-    { text: 'Xem bản đồ 3D', icon: <MapIcon />, path: '/map', roles: ['guest', 'editor', 'admin'] },
-    { text: 'Quản lý công trình', icon: <HomeWorkIcon />, path: '/editor', roles: ['editor', 'admin'] },
-    { text: 'Quản lý người dùng', icon: <PeopleIcon />, path: '/admin/users', roles: ['admin'] },
-    { text: 'Lịch sử thay đổi', icon: <HistoryIcon />, path: '/audit', roles: ['editor', 'admin'] },
+    { text: 'Xem bản đồ 3D', icon: <MapIcon />, path: '/map', roles: ['GUEST', 'EDITOR', 'ADMIN'] },
+    { text: 'Quản lý công trình', icon: <HomeWorkIcon />, path: '/editor', roles: ['EDITOR', 'ADMIN'] },
+    { text: 'Quản lý người dùng', icon: <PeopleIcon />, path: '/users', roles: ['ADMIN'] },
+    { text: 'Lịch sử thay đổi', icon: <HistoryIcon />, path: '/history', roles: ['ADMIN'] },
   ];
 
   const filteredMenuItems = menuItems.filter((item) =>
-    item.roles.includes(user?.role || 'guest')
+    item.roles.includes(user?.role || 'GUEST')
   );
 
   const handleNavigate = (path: string) => {
@@ -134,7 +134,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <Box sx={{ display: isMobile ? 'none' : 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
               <Typography variant="body2">{user.name}</Typography>
               <Typography variant="caption" color="text.secondary">
-                {ROLE_LABELS[user.role]}
+                {ROLE_LABELS[user.roleCode || user.role]}
               </Typography>
             </Box>
           </Box>

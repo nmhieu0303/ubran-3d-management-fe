@@ -35,8 +35,8 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children, showSidebar = tr
       />
       <Box sx={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         {showSidebar && user && (
-          <Sidebar 
-            open={sidebarOpen} 
+          <Sidebar
+            open={sidebarOpen}
             onClose={() => setSidebarOpen(false)}
             collapsed={sidebarCollapsed}
             onToggleCollapse={handleSidebarCollapse}
@@ -46,7 +46,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children, showSidebar = tr
           component="main"
           sx={{
             flex: 1,
-            overflow: 'hidden',
+            overflow: 'auto',
             position: 'relative',
           }}
         >

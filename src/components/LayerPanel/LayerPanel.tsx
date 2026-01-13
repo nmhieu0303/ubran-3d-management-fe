@@ -7,12 +7,14 @@ import {
   FormControlLabel,
   Checkbox,
   Divider,
+  CircularProgress,
   useMediaQuery,
   useTheme,
+  Button,
 } from '@mui/material';
 import { Close as CloseIcon } from '@mui/icons-material';
-import { mockLayers } from '../../services/mockData';
 import { useMapStore } from '../../store/mapStore';
+import { useObjectTypes } from '../../hooks/useObjectTypes';
 
 interface LayerPanelProps {
   open: boolean;
@@ -21,13 +23,25 @@ interface LayerPanelProps {
 }
 
 export const LayerPanel: React.FC<LayerPanelProps> = ({ open, onClose, anchorEl }) => {
-  console.log('📋 LayerPanel rerendered, open:', open);
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-  const { visibleLayers, toggleLayer } = useMapStore();
+  const { filteredObjectTypes, toggleFilteredObjectType, setFilteredObjectTypes } = useMapStore();
+  const { data: objectTypes = [], loading: isLoading } = useObjectTypes();
 
-  const handleLayerToggle = (layerId: string) => {
-    toggleLayer(layerId);
+  const handleLayerToggle = (typeId: string) => {
+    toggleFilteredObjectType(typeId);
+  };
+
+  const allSelected = objectTypes.length > 0 && objectTypes.every((type) =>
+    filteredObjectTypes.includes(type.value)
+  );
+
+  const handleSelectAll = () => {
+    if (allSelected) {
+      setFilteredObjectTypes([]);
+    } else {
+      setFilteredObjectTypes(objectTypes.map((type) => type.value));
+    }
   };
 
   return (
@@ -60,20 +74,40 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({ open, onClose, anchorEl 
         </Box>
         <Divider sx={{ mb: 2 }} />
         <Box>
-          {mockLayers.map((layer) => (
+          {isLoading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}>
+              <CircularProgress size={24} />
+            </Box>
+          ) : objectTypes.map((layer) => (
             <FormControlLabel
-              key={layer.id}
+              key={layer.value}
               control={
                 <Checkbox
-                  checked={visibleLayers.includes(layer.id)}
-                  onChange={() => handleLayerToggle(layer.id)}
+                  checked={filteredObjectTypes.includes(layer.value)}
+                  onChange={() => handleLayerToggle(layer.value)}
                 />
               }
-              label={layer.name}
+              label={layer.label}
               sx={{ display: 'block', mb: 1 }}
             />
           ))}
         </Box>
+
+        {/* Select All Button */}
+        {!isLoading && objectTypes.length > 0 && (
+          <Box sx={{ mb: 2 }}>
+            <Button
+              fullWidth
+              size="small"
+              variant={allSelected ? 'contained' : 'outlined'}
+              onClick={handleSelectAll}
+              sx={{ textTransform: 'none' }}
+            >
+              {allSelected ? 'Bỏ chọn tất cả' : 'Chọn tất cả'}
+            </Button>
+          </Box>
+        )}
+
       </Box>
     </Popover>
   );

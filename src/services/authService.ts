@@ -1,67 +1,66 @@
-import type { LoginCredentials, AuthResponse, User } from '../types/user.types';
+import type { LoginCredentials, AuthResponse, User, ChangePasswordPayload } from '../types/user.types';
+import { api } from './api';
+import { API_ENDPOINTS } from '../constants/api';
 
-const generateMockToken = (email: string): string => {
-  return `mock-jwt-token-${email}-${Date.now()}`;
-};
-
-const mockUsers = [
-  {
-    id: '1',
-    email: 'admin@example.com',
-    name: 'Admin User',
-    role: 'admin' as const,
-    avatar: 'https://via.placeholder.com/150',
-    createdAt: '2023-01-01T00:00:00Z',
-    updatedAt: '2023-01-01T00:00:00Z',
-  },
-  {
-    id: '2',
-    email: 'editor@example.com',
-    name: 'Regular User',
-    role: 'editor' as const,
-    avatar: 'https://via.placeholder.com/150',
-    createdAt: '2023-01-01T00:00:00Z',
-    updatedAt: '2023-01-01T00:00:00Z',
-  },
-];
+interface ChangePasswordResponse {
+  message: string;
+}
 
 export const authService = {
   async login(credentials: LoginCredentials): Promise<AuthResponse> {
-    await new Promise(resolve => setTimeout(resolve, 1000));
-
-    const user = mockUsers.find(u => u.email === credentials.email);
-
-    if (!user || credentials.password !== 'password') {
-      throw new Error('Invalid email or password');
-    }
-
-    const token = generateMockToken(credentials.email);
-
-    return {
-      user,
-      token,
-    };
+    const response = await api.post(API_ENDPOINTS.AUTH.LOGIN, credentials);
+    const data = response.data?.data as AuthResponse ?? response.data;
+    return data;
   },
+
 
   async logout(): Promise<void> {
-    await new Promise(resolve => setTimeout(resolve, 500));
+    await api.post(API_ENDPOINTS.AUTH.LOGOUT);
   },
 
-  async verifyToken(token: string): Promise<User> {
-    await new Promise(resolve => setTimeout(resolve, 500));
 
-    const emailMatch = token.match(/mock-jwt-token-(.+)-\d+/);
-    if (!emailMatch) {
-      throw new Error('Invalid token');
-    }
+  async getProfile(): Promise<User> {
+    const response = await api.get<User>(API_ENDPOINTS.AUTH.ME);
+    const user = response.data as User;
 
-    const email = emailMatch[1];
-    const user = mockUsers.find(u => u.email === email);
+    console.log('authService.getProfile - response.data:', user);
 
-    if (!user) {
-      throw new Error('User not found');
+    if (user.data && user.data.email) {
+      return user.data;
     }
 
     return user;
+  },
+
+  async changePassword(data: ChangePasswordPayload): Promise<ChangePasswordResponse> {
+    const { currentPassword, newPassword, confirmPassword } = data;
+    // Validate that passwords match
+    if (newPassword !== confirmPassword) {
+      throw new Error('Mật khẩu xác nhận không khớp');
+    }
+
+    const response = await api.post<ChangePasswordResponse>(
+      API_ENDPOINTS.AUTH.CHANGE_PASSWORD,
+      {
+        currentPassword,
+        newPassword,
+      }
+    );
+    return response.data as ChangePasswordResponse;
+  },
+
+
+  async verifyToken(_token: string): Promise<User> {
+    return this.getProfile();
+  },
+
+  async getAllUsers(): Promise<User[]> {
+    const response = await api.get<User[]>('/users');
+    return response.data as User[];
+  },
+
+  async deleteUser(userId: string): Promise<boolean> {
+    await api.delete(`/users/${userId}`);
+    return true;
   },
 };

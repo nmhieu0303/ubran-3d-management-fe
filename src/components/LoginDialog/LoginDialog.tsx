@@ -1,20 +1,23 @@
-import React, { useState } from 'react';
-import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
 import {
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Button,
-  TextField,
   Alert,
+  Button,
   CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  IconButton,
+  InputAdornment,
+  TextField,
   Typography,
 } from '@mui/material';
-import { useAuthStore } from '../../store/authStore';
+import { Visibility, VisibilityOff } from '@mui/icons-material';
+import React, { useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { z } from 'zod';
 import { authService } from '../../services/authService';
+import { useAuthStore } from '../../store/authStore';
 
 const loginSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -32,6 +35,7 @@ export const LoginDialog: React.FC<LoginDialogProps> = ({ open, onClose }) => {
   const { setAuth } = useAuthStore();
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const {
     register,
@@ -106,20 +110,33 @@ export const LoginDialog: React.FC<LoginDialogProps> = ({ open, onClose }) => {
             required
             fullWidth
             label="Mật khẩu"
-            type="password"
+            type={showPassword ? 'text' : 'password'}
             id="password"
             autoComplete="current-password"
             {...register('password')}
             error={!!errors.password}
             helperText={errors.password?.message}
+            InputProps={{
+              endAdornment: (
+                <InputAdornment position="end">
+                  <IconButton
+                    aria-label="toggle password visibility"
+                    onClick={() => setShowPassword(!showPassword)}
+                    edge="end"
+                  >
+                    {showPassword ? <VisibilityOff /> : <Visibility />}
+                  </IconButton>
+                </InputAdornment>
+              ),
+            }}
           />
 
           <Typography variant="body2" color="text.secondary" sx={{ mt: 2, textAlign: 'center' }}>
             Tài khoản demo:
             <br />
-            <strong>admin@example.com</strong> / password
+            <strong>admin@urban3d.com</strong> / admin@123
             <br />
-            <strong>editor@example.com</strong> / password
+            <strong>editor@example.com</strong> / editor@123
           </Typography>
         </DialogContent>
 
@@ -127,12 +144,7 @@ export const LoginDialog: React.FC<LoginDialogProps> = ({ open, onClose }) => {
           <Button onClick={handleClose} color="inherit" sx={{ mr: 1 }}>
             Hủy
           </Button>
-          <Button
-            type="submit"
-            variant="contained"
-            disabled={isLoading}
-            sx={{ minWidth: 100 }}
-          >
+          <Button type="submit" variant="contained" disabled={isLoading} sx={{ minWidth: 100 }}>
             {isLoading ? <CircularProgress size={20} /> : 'Đăng nhập'}
           </Button>
         </DialogActions>

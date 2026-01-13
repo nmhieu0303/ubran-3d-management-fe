@@ -1,0 +1,1 @@
+export { ObjectDetailPanel } from './ObjectDetailPanel';

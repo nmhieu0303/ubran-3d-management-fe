@@ -4,6 +4,7 @@ export const FEATURE_TYPES = {
   ROAD: 'road',
   UTILITY: 'utility',
   BRIDGE: 'bridge',
+  CAMERA: 'camera',
   OTHER: 'other',
 } as const;
 
@@ -13,5 +14,6 @@ export const FEATURE_TYPE_LABELS: Record<string, string> = {
   road: 'Đường',
   utility: 'Tiện ích',
   bridge: 'Cầu',
+  camera: 'Camera giám sát',
   other: 'Khác',
 };

@@ -1,0 +1,1 @@
+export { FileLightbox } from './FileLightbox';
