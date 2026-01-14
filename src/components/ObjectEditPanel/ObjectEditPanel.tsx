@@ -352,12 +352,24 @@ export const ObjectEditPanel: React.FC<ObjectEditPanelProps> = ({
               }
 
               let formattedCoordinates = '';
+              let extractedHeights = lod.heights;
               try {
-                if (lodGeometryType === 'MultiPolygon' && lod.heights) {
-                  formattedCoordinates = formatMultiPolygonWithHeights(
-                    geomObject.coordinates,
-                    lod.heights
-                  );
+                if (lodGeometryType === 'MultiPolygon') {
+                  if (lod.heights && Array.isArray(lod.heights)) {
+                    formattedCoordinates = formatMultiPolygonWithHeights(
+                      geomObject.coordinates,
+                      lod.heights
+                    );
+                  } else {
+                    const multiPolygonCoords = geomObject.coordinates as number[][][][];
+                    const defaultHeights = multiPolygonCoords.map(() => 20);
+                    formattedCoordinates = formatMultiPolygonWithHeights(
+                      geomObject.coordinates,
+                      defaultHeights
+                    );
+                    extractedHeights = defaultHeights;
+                    console.warn(`⚠️  No heights array for MultiPolygon LOD${lodLevel} of ${data.name}, created default heights:`, defaultHeights);
+                  }
                 } else {
                   formattedCoordinates = JSON.stringify(geomObject.coordinates);
                 }
@@ -371,7 +383,7 @@ export const ObjectEditPanel: React.FC<ObjectEditPanelProps> = ({
                 coordinates: formattedCoordinates,
                 area: lod.area,
                 perimeter: lod.perimeter,
-                heights: lod.heights,
+                heights: extractedHeights,
                 enabled: true,
               };
             });
@@ -462,18 +474,24 @@ export const ObjectEditPanel: React.FC<ObjectEditPanelProps> = ({
         if (lod.enabled && lod.coordinates && lod.coordinates.trim() !== '') {
           try {
             let coords;
-            if (lod.type === 'MultiPolygon' && lod.heights) {
+            let extractedHeights = lod.heights;
+
+            if (lod.type === 'MultiPolygon') {
               const parsed = parseMultiPolygonWithHeights(lod.coordinates);
-              if (!parsed) {
-                return;
+              if (parsed) {
+                coords = parsed.coordinates;
+                if (!extractedHeights && parsed.heights) {
+                  extractedHeights = parsed.heights;
+                }
+              } else {
+                coords = JSON.parse(lod.coordinates);
               }
-              coords = parsed.coordinates;
             } else {
               coords = JSON.parse(lod.coordinates);
             }
 
             let transformedCoords = coords;
-            let transformedHeights = lod.heights;
+            let transformedHeights = extractedHeights;
 
             if (
               externalTransform.position &&
@@ -652,13 +670,29 @@ export const ObjectEditPanel: React.FC<ObjectEditPanelProps> = ({
       }
 
       try {
-        const coordinates = JSON.parse(lod.coordinates);
         const geometryType = lod.type as 'Point' | 'LineString' | 'Polygon' | 'MultiPolygon';
+        let coordinates: any;
+        let heights: number[] | undefined;
+
+        if (geometryType === 'MultiPolygon') {
+          const parsed = parseMultiPolygonWithHeights(lod.coordinates);
+          if (parsed) {
+            coordinates = parsed.coordinates;
+            heights = parsed.heights;
+          } else {
+            coordinates = JSON.parse(lod.coordinates);
+            heights = lod.heights;
+          }
+        } else {
+          coordinates = JSON.parse(lod.coordinates);
+          heights = lod.heights;
+        }
 
         const previewGeometry = {
           type: geometryType,
           coordinates: coordinates,
-          height: lod.heights ? lod.heights[0] : undefined,
+          height: heights?.[0],
+          heights: heights,
         };
 
         prevPreviewCoordinatesRef.current = coordinatesKey;
@@ -792,13 +826,28 @@ export const ObjectEditPanel: React.FC<ObjectEditPanelProps> = ({
       }
 
       try {
-        const coordinates = JSON.parse(coordinatesStr);
         const geometryType = lodData[level].type as 'Point' | 'LineString' | 'Polygon' | 'MultiPolygon';
+        let coordinates: any;
+        let heights: number[] | undefined;
+
+        if (geometryType === 'MultiPolygon') {
+          const parsed = parseMultiPolygonWithHeights(coordinatesStr);
+          if (parsed) {
+            coordinates = parsed.coordinates;
+            heights = parsed.heights;
+          } else {
+            throw new Error('Failed to parse MultiPolygon');
+          }
+        } else {
+          coordinates = JSON.parse(coordinatesStr);
+          heights = lodData[level].heights;
+        }
 
         const previewGeometry = {
           type: geometryType,
           coordinates: coordinates,
-          height: lodData[level].heights?.[0]
+          height: heights?.[0],
+          heights: heights
         };
 
         startPreview(level, previewGeometry);
@@ -833,6 +882,14 @@ export const ObjectEditPanel: React.FC<ObjectEditPanelProps> = ({
           if (validation.valid) {
             const parsed = parseMultiPolygonWithHeights(lodInfo.coordinates);
             if (parsed) {
+              console.log(`🔍 ObjectEditPanel processLodData MultiPolygon LOD${level}:`, {
+                input: lodInfo.coordinates,
+                parsed: {
+                  coordCount: parsed.coordinates.length,
+                  heights: parsed.heights,
+                  zValues: parsed.coordinates.map(poly => poly[0]?.[0]?.[2] ?? 'undefined'),
+                }
+              });
               lods.push({
                 lodLevel: level as 0 | 1 | 2 | 3,
                 geometryType: 'MultiPolygon',
@@ -878,14 +935,26 @@ export const ObjectEditPanel: React.FC<ObjectEditPanelProps> = ({
   ) => {
     if (currentDrawingLod === null) return;
 
+    let coordinatesStr = '';
+    let heights: number[] | undefined = undefined;
+
+    if (geometryType === 'MultiPolygon' && Array.isArray(coordinates) && coordinates[0] && typeof coordinates[0] === 'object' && 'coordinates' in coordinates[0]) {
+      const blocks = coordinates as Array<{ coordinates: number[][][]; height: number }>;
+      coordinatesStr = JSON.stringify(blocks);
+      heights = blocks.map(b => b.height);
+    } else {
+      coordinatesStr = JSON.stringify(coordinates);
+    }
+
     setLodData({
       ...lodData,
       [currentDrawingLod]: {
         ...lodData[currentDrawingLod],
         type: geometryType,
-        coordinates: JSON.stringify(coordinates),
+        coordinates: coordinatesStr,
         area,
         perimeter,
+        heights: heights,
       },
     });
     setIsDirty(true);
@@ -995,6 +1064,7 @@ export const ObjectEditPanel: React.FC<ObjectEditPanelProps> = ({
       if (objectId) {
         const updateData: UpdateUrbanObjectRequest = {
           name,
+          type: type,
           height: height ? parseFloat(height) : undefined,
           area: area ? parseFloat(area) : undefined,
           description: properties.description,

@@ -5,16 +5,19 @@ import GraphicsLayer from '@arcgis/core/layers/GraphicsLayer';
 import Point from '@arcgis/core/geometry/Point';
 import Polyline from '@arcgis/core/geometry/Polyline';
 import Polygon from '@arcgis/core/geometry/Polygon';
-import { LineSymbol3D, LineSymbol3DLayer, PointSymbol3D, IconSymbol3DLayer, PolygonSymbol3D, ExtrudeSymbol3DLayer, FillSymbol3DLayer, ObjectSymbol3DLayer, PathSymbol3DLayer } from '@arcgis/core/symbols';
+import { LineSymbol3D, LineSymbol3DLayer, PointSymbol3D, IconSymbol3DLayer, PolygonSymbol3D, ExtrudeSymbol3DLayer, FillSymbol3DLayer, ObjectSymbol3DLayer, PathSymbol3DLayer, MeshSymbol3D } from '@arcgis/core/symbols';
 import type SceneView from '@arcgis/core/views/SceneView';
 import Sketch from '@arcgis/core/widgets/Sketch';
 import { useEffect, useRef, useState } from 'react';
 import { ALTITUDE_THRESHOLDS } from '../constants';
+import { convertMultiPolygonToMesh } from '../utils/meshUtils';
+import type { UrbanObjectLod } from '../types/feature.types';
 
 export interface PreviewGeometry {
   type: 'Point' | 'LineString' | 'Polygon' | 'MultiPolygon';
   coordinates: any;
   height?: number;
+  heights?: number[];
   modelFile?: File;
   anchorPoint?: Point;
 }
@@ -101,6 +104,7 @@ export const useLodPreview = ({ view, onTransform }: UseLodPreviewOptions) => {
         });
 
       case 'MultiPolygon':
+        // For simple MultiPolygon without multiple tiers (single height)
         return new PolygonSymbol3D({
           symbolLayers: [
             new ExtrudeSymbol3DLayer({
@@ -257,6 +261,73 @@ export const useLodPreview = ({ view, onTransform }: UseLodPreviewOptions) => {
         }
       }, 100);
 
+      return;
+    }
+
+    if (geometry.type === 'MultiPolygon' && geometry.heights && Array.isArray(geometry.heights) && geometry.heights.length > 1) {
+      const lodData: UrbanObjectLod = {
+        id: 'preview-multipolygon',
+        urbanObjectId: 'preview',
+        lodLevel: lod as 0 | 1 | 2 | 3,
+        enabled: true,
+        geometryType: 'MultiPolygon',
+        geom: {
+          type: 'MultiPolygon',
+          coordinates: geometry.coordinates,
+        },
+        heights: geometry.heights,
+        modelAsset: null,
+        modelAssetId: null,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      const mesh = convertMultiPolygonToMesh(lodData, {
+        extrude: true,
+        heightScale: 1.0,
+        customColors: geometry.heights.map(() => [0, 149, 217, 1] as [number, number, number, number]),
+      });
+
+      if (!mesh) {
+        console.error('Failed to create mesh for MultiPolygon preview');
+        return;
+      }
+
+      const meshSymbol = new MeshSymbol3D({
+        symbolLayers: [
+          new FillSymbol3DLayer({
+            material: { color: [0, 149, 217, 1] },
+            edges: {
+              type: 'solid',
+              color: [0, 100, 150],
+              size: 1.5,
+            } as any,
+          }),
+        ],
+      });
+
+      const graphic = new Graphic({
+        geometry: mesh,
+        symbol: meshSymbol,
+        attributes: {
+          type: 'preview',
+          lodLevel: lod,
+          geometryType: geometry.type,
+        },
+      });
+
+      previewLayerRef.current.add(graphic);
+      previewGraphicRef.current = graphic;
+
+      originalNavigationRef.current = {
+        zoom: view.navigation.mouseWheelZoomEnabled,
+        pan: view.navigation.browserTouchPanEnabled,
+      };
+
+      view.navigation.browserTouchPanEnabled = false;
+
+      setIsPreviewMode(true);
+      setPreviewLodLevel(lod);
       return;
     }
 

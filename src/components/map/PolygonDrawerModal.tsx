@@ -202,13 +202,16 @@ export const PolygonDrawerModal: React.FC<PolygonDrawerModalProps> = ({
   }, []);
 
 
-  const getColorByGeometryType = useCallback((type: string): [number, number, number] => {
+  const getColorByGeometryType = useCallback((type: string, selected?: boolean): [number, number, number] => {
+    if (selected) {
+      return [0, 149, 217];
+    }
     return [255, 165, 0];
   }, []);
 
 
   const createSymbolByType = useCallback((type: string, height?: number, selected?: boolean) => {
-    const color = getColorByGeometryType(type);
+    const color = getColorByGeometryType(type, selected);
 
     switch (type) {
       case 'Point':
@@ -937,9 +940,11 @@ export const PolygonDrawerModal: React.FC<PolygonDrawerModalProps> = ({
                 initialCoordinates[0] !== null &&
                 'coordinates' in initialCoordinates[0]
               ) {
-                coordsArray = (
-                  initialCoordinates as Array<{ coordinates: number[][][]; height: number }>
-                ).map((item) => item.coordinates);
+                const blocks = initialCoordinates as Array<{ coordinates: number[][][]; height: number }>;
+                coordsArray = blocks.map((item) => item.coordinates);
+                const extractedHeights = blocks.map((item) => item.height);
+                polygonHeightRef.current = extractedHeights[0] ?? 20;
+                (window as any).__polygon_drawer_heights = extractedHeights;
               } else if (initialCoordinates.length > 0 && Array.isArray(initialCoordinates[0])) {
                 coordsArray = Array.isArray(initialCoordinates[0][0]?.[0])
                   ? (initialCoordinates as number[][][][])
@@ -950,7 +955,8 @@ export const PolygonDrawerModal: React.FC<PolygonDrawerModalProps> = ({
               }
 
               const graphics: __esri.Graphic[] = [];
-              coordsArray.forEach((rings: number[][][]) => {
+              const storedHeights = (window as any).__polygon_drawer_heights || [];
+              coordsArray.forEach((rings: number[][][], index: number) => {
                 const firstCoordZ = rings[0]?.[0]?.[2] ?? 0;
 
                 let polygon = new Polygon({
@@ -963,7 +969,9 @@ export const PolygonDrawerModal: React.FC<PolygonDrawerModalProps> = ({
                   polygon = applyZOffsetToPolygon(polygon, firstCoordZ);
                 }
 
-                const displayHeight = geometryType === 'MultiPolygon' ? polygonHeightRef.current : 0;
+                const displayHeight = geometryType === 'MultiPolygon'
+                  ? (storedHeights[index] ?? polygonHeightRef.current)
+                  : 0;
                 const graphic = new Graphic({
                   geometry: polygon,
                   symbol: createSymbolByType(geometryType || 'Polygon', displayHeight, false),

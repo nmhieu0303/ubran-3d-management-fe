@@ -155,7 +155,8 @@ const isPointInTriangle = (point: number[], v1: number[], v2: number[], v3: numb
 
 const createExtrudedMeshData = (
   ring: number[][],
-  height: number
+  height: number,
+  origin: number[] = [0, 0, 0]
 ): { position: number[]; uv: number[]; faces: number[] } => {
   const position: number[] = [];
   const uv: number[] = [];
@@ -238,7 +239,6 @@ export const convertMultiPolygonToMesh = (
     return null;
   }
 
-
   const firstRing = multiPolygon[0][0];
   const origin = [firstRing[0][0], firstRing[0][1], firstRing[0][2] || 0];
 
@@ -282,7 +282,7 @@ export const convertMultiPolygonToMesh = (
       }
 
       if (height > 0) {
-        const meshData = createExtrudedMeshData(ring, height);
+        const meshData = createExtrudedMeshData(ring, height, origin);
 
 
         const adjustedFaces = meshData.faces.map((idx) => idx + vertexOffset);
@@ -357,7 +357,7 @@ export const convertPolygonToMesh = (
   const ring = polygon[0];
   const origin = [ring[0][0], ring[0][1], ring[0][2] || 0];
 
-  const meshData = createExtrudedMeshData(ring, height);
+  const meshData = createExtrudedMeshData(ring, height, origin);
 
   const material = new MeshMaterial({
     color: color as any,

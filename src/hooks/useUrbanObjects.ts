@@ -2,6 +2,9 @@ import Graphic from '@arcgis/core/Graphic';
 import GraphicsLayer from '@arcgis/core/layers/GraphicsLayer';
 import LineSymbol3D from '@arcgis/core/symbols/LineSymbol3D';
 import PathSymbol3DLayer from '@arcgis/core/symbols/PathSymbol3DLayer';
+import PolygonSymbol3D from '@arcgis/core/symbols/PolygonSymbol3D';
+import FillSymbol3DLayer from '@arcgis/core/symbols/FillSymbol3DLayer';
+import MeshSymbol3D from '@arcgis/core/symbols/MeshSymbol3D';
 import type SceneView from '@arcgis/core/views/SceneView';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
@@ -14,11 +17,10 @@ import {
   applyTransformToPolygon,
   type Transform,
 } from '../utils/geometryUtils';
+import { convertMultiPolygonToMesh } from '../utils/meshUtils';
 import { useLodManager } from './useLodManager';
 
-/**
- * Helper function to get symbol for urban object
- */
+
 const getSymbolForObject = (obj: UrbanObject, lod: UrbanObjectLod): any => {
   const height = obj.properties?.height || 10;
 
@@ -475,11 +477,49 @@ export const useUrbanObjects = ({
           ];
         }
 
-        // ===== CASE 2: MultiPolygon (all LODs - render as geometry) =====
+        // ===== CASE 2: MultiPolygon (all LODs - render as mesh or geometry) =====
         // MultiPolygon always renders as geometry (never as 3D model)
         if (actualGeometryType === 'MultiPolygon') {
+          if (lod.heights && Array.isArray(lod.heights) && lod.heights.length > 1) {
+            const mesh = convertMultiPolygonToMesh(lod, {
+              extrude: true,
+              heightScale: 1.0,
+            });
 
-          // Render each polygon part as separate extrude block
+            if (mesh) {
+              const meshSymbol = new MeshSymbol3D({
+                symbolLayers: [
+                  new FillSymbol3DLayer({
+                    material: { color: [229, 229, 229, 0.85] },
+                    edges: {
+                      type: 'solid',
+                      color: [100, 100, 100, 0.9],
+                      size: 1,
+                    } as any,
+                  }),
+                ],
+              });
+
+              return [
+                new Graphic({
+                  geometry: mesh,
+                  symbol: meshSymbol,
+                  attributes: {
+                    id: obj.id,
+                    name: obj.name,
+                    code: obj.code,
+                    typeId: obj.typeId,
+                    geometryType: 'MultiPolygon',
+                    heights: lod.heights,
+                    isMesh: true,
+                    ...obj.properties,
+                  },
+                }),
+              ];
+            }
+          }
+
+          // Fallback: Render each polygon part as separate extrude block
           // Each polygon is a tier at different Z elevation with its own height
           return lod.geom.coordinates.map((polygonCoords: any, index: number) => {
             const firstPoint = polygonCoords[0]?.[0] || [];
@@ -568,14 +608,19 @@ export const useUrbanObjects = ({
               rings: ringsWithZ,
               hasZ: true,
             };
-            symbol = {
-              type: 'simple-fill',
-              color: [100, 180, 255, 0.5],
-              outline: {
-                color: [0, 0, 0, 0.8],
-                width: 1,
-              },
-            };
+            // Use PolygonSymbol3D with FillSymbol3DLayer instead of simple-fill
+            // This ensures proper rendering at any camera angle in 3D SceneView
+            symbol = new PolygonSymbol3D({
+              symbolLayers: [
+                new FillSymbol3DLayer({
+                  material: { color: [100, 180, 255, 0.5] },
+                  outline: {
+                    color: [0, 0, 0, 0.8],
+                    size: 1,
+                  },
+                }),
+              ],
+            });
           } else {
             return null;
           }
@@ -629,13 +674,27 @@ export const useUrbanObjects = ({
     if (symbol.type === 'polygon-3d') {
       const polygonSymbol = symbol as __esri.PolygonSymbol3D;
       if (polygonSymbol.symbolLayers && polygonSymbol.symbolLayers.length > 0) {
-        const extrudeLayer = polygonSymbol.symbolLayers.getItemAt(0) as any;
-        if (extrudeLayer.material) {
-          colorInfo.fillColor = extrudeLayer.material.color?.slice?.() || [229, 229, 229];
-        }
-        if (extrudeLayer.edges) {
-          colorInfo.edgeColor = extrudeLayer.edges.color?.slice?.() || [0, 0, 0];
-          colorInfo.edgeSize = extrudeLayer.edges.size || 1;
+        const layer = polygonSymbol.symbolLayers.getItemAt(0) as any;
+
+        // Handle both ExtrudeSymbol3DLayer and FillSymbol3DLayer
+        if (layer.type === 'extrude') {
+          // ExtrudeSymbol3DLayer
+          if (layer.material) {
+            colorInfo.fillColor = layer.material.color?.slice?.() || [229, 229, 229];
+          }
+          if (layer.edges) {
+            colorInfo.edgeColor = layer.edges.color?.slice?.() || [0, 0, 0];
+            colorInfo.edgeSize = layer.edges.size || 1;
+          }
+        } else if (layer.type === 'fill') {
+          // FillSymbol3DLayer
+          if (layer.material) {
+            colorInfo.fillColor = layer.material.color?.slice?.() || [100, 180, 255, 0.5];
+          }
+          if (layer.outline) {
+            colorInfo.edgeColor = layer.outline.color?.slice?.() || [0, 0, 0];
+            colorInfo.edgeSize = layer.outline.size || 1;
+          }
         }
       }
     } else if (symbol.type === 'mesh-3d') {
@@ -659,8 +718,20 @@ export const useUrbanObjects = ({
           colorInfo.castShadows = objectLayer.castShadows || false;
         }
       }
+    } else if (symbol.type === 'simple-fill') {
+      colorInfo.color = (symbol as any).color?.slice?.() || [0, 122, 255];
+      colorInfo.outline = (symbol as any).outline ? {
+        color: (symbol as any).outline.color?.slice?.() || [0, 0, 0],
+        width: (symbol as any).outline.width || 1,
+      } : undefined;
     } else if ('color' in symbol) {
       colorInfo.color = (symbol as any).color?.slice?.() || [0, 122, 255];
+      if ('outline' in symbol) {
+        colorInfo.outline = (symbol as any).outline ? {
+          color: (symbol as any).outline.color?.slice?.() || [0, 0, 0],
+          width: (symbol as any).outline.width || 1,
+        } : undefined;
+      }
     }
 
     originalColorsRef.current.set(graphicId, colorInfo);
@@ -695,13 +766,29 @@ export const useUrbanObjects = ({
       if (symbol.type === 'polygon-3d') {
         const polygonSymbol = symbol as __esri.PolygonSymbol3D;
         if (polygonSymbol.symbolLayers && polygonSymbol.symbolLayers.length > 0) {
-          const extrudeLayer = polygonSymbol.symbolLayers.getItemAt(0) as any;
-          if (extrudeLayer.material) {
-            extrudeLayer.material.color = isSelected ? [255, 255, 0] : [229, 229, 229];
-          }
-          if (extrudeLayer.edges) {
-            extrudeLayer.edges.color = isSelected ? [255, 200, 0] : [0, 0, 0];
-            extrudeLayer.edges.size = isSelected ? 2 : 1;
+          const layer = polygonSymbol.symbolLayers.getItemAt(0) as any;
+
+          // Handle both ExtrudeSymbol3DLayer and FillSymbol3DLayer
+          if (layer.type === 'extrude') {
+            // ExtrudeSymbol3DLayer (3D extruded polygons)
+            if (layer.material) {
+              layer.material.color = isSelected ? [255, 255, 0] : [229, 229, 229];
+            }
+            if (layer.edges) {
+              layer.edges.color = isSelected ? [255, 200, 0] : [0, 0, 0];
+              layer.edges.size = isSelected ? 2 : 1;
+            }
+          } else if (layer.type === 'fill') {
+            // FillSymbol3DLayer (2D polygons in 3D space)
+            if (layer.material) {
+              layer.material.color = isSelected
+                ? [255, 255, 0, 0.7]
+                : [100, 180, 255, 0.5];
+            }
+            if (layer.outline) {
+              layer.outline.color = isSelected ? [255, 200, 0] : [0, 0, 0];
+              layer.outline.size = isSelected ? 2 : 1;
+            }
           }
         }
       } else if (symbol.type === 'mesh-3d') {
@@ -727,6 +814,22 @@ export const useUrbanObjects = ({
               : null;
 
             objectLayer.castShadows = isSelected;
+          }
+        }
+      } else if (symbol.type === 'simple-fill') {
+        const fillSymbol = symbol as any;
+        if (isSelected) {
+          fillSymbol.color = [255, 255, 0, 0.7];
+          if (fillSymbol.outline) {
+            fillSymbol.outline.color = [255, 200, 0];
+            fillSymbol.outline.width = 2;
+          }
+        } else {
+          // Restore original color with proper transparency
+          fillSymbol.color = [100, 180, 255, 0.5];
+          if (fillSymbol.outline) {
+            fillSymbol.outline.color = [0, 0, 0, 0.8];
+            fillSymbol.outline.width = 1;
           }
         }
       } else if ('color' in symbol) {
@@ -768,13 +871,27 @@ export const useUrbanObjects = ({
       if (symbol.type === 'polygon-3d') {
         const polygonSymbol = symbol as __esri.PolygonSymbol3D;
         if (polygonSymbol.symbolLayers && polygonSymbol.symbolLayers.length > 0) {
-          const extrudeLayer = polygonSymbol.symbolLayers.getItemAt(0) as any;
-          if (extrudeLayer.material) {
-            extrudeLayer.material.color = originalColor.fillColor || [229, 229, 229];
-          }
-          if (extrudeLayer.edges) {
-            extrudeLayer.edges.color = originalColor.edgeColor || [0, 0, 0];
-            extrudeLayer.edges.size = originalColor.edgeSize || 1;
+          const layer = polygonSymbol.symbolLayers.getItemAt(0) as any;
+
+          // Handle both ExtrudeSymbol3DLayer and FillSymbol3DLayer
+          if (layer.type === 'extrude') {
+            // ExtrudeSymbol3DLayer (3D extruded polygons)
+            if (layer.material) {
+              layer.material.color = originalColor.fillColor || [229, 229, 229];
+            }
+            if (layer.edges) {
+              layer.edges.color = originalColor.edgeColor || [0, 0, 0];
+              layer.edges.size = originalColor.edgeSize || 1;
+            }
+          } else if (layer.type === 'fill') {
+            // FillSymbol3DLayer (2D polygons in 3D space)
+            if (layer.material) {
+              layer.material.color = originalColor.fillColor || [100, 180, 255, 0.5];
+            }
+            if (layer.outline) {
+              layer.outline.color = originalColor.edgeColor || [0, 0, 0];
+              layer.outline.size = originalColor.edgeSize || 1;
+            }
           }
         }
       } else if (symbol.type === 'mesh-3d') {
@@ -801,8 +918,19 @@ export const useUrbanObjects = ({
             objectLayer.castShadows = originalColor.castShadows || false;
           }
         }
+      } else if (symbol.type === 'simple-fill') {
+        const fillSymbol = symbol as any;
+        fillSymbol.color = originalColor.color || [100, 180, 255, 0.5];
+        if (fillSymbol.outline && originalColor.outline) {
+          fillSymbol.outline.color = originalColor.outline.color || [0, 0, 0, 0.8];
+          fillSymbol.outline.width = originalColor.outline.width || 1;
+        }
       } else if ('color' in symbol) {
         (symbol as any).color = originalColor.color || [0, 122, 255];
+        if ('outline' in symbol && originalColor.outline) {
+          (symbol as any).outline.color = originalColor.outline.color || [0, 0, 0];
+          (symbol as any).outline.width = originalColor.outline.width || 1;
+        }
       }
 
       graphic.symbol = symbol;

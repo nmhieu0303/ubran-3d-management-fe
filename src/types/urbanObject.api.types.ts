@@ -68,6 +68,8 @@ export interface CreateUrbanObjectRequest {
 
 export interface UpdateUrbanObjectRequest {
   name?: string;
+  type?: string;
+  typeId?: string;
   height?: number;
   area?: number;
   address?: string;

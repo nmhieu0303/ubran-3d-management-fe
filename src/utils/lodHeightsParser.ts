@@ -27,7 +27,9 @@ export function parseMultiPolygonWithHeights(input: string): ParsedLodData | nul
       }
 
       const cleanedCoordinates: number[][][] = block.coordinates.map(
-        (ring: number[][]) => ring.map((point: number[]) => [point[0], point[1]])
+        (ring: number[][]) => ring.map((point: number[]) =>
+          point.length > 2 ? [point[0], point[1], point[2]] : [point[0], point[1]]
+        )
       );
 
       coordinates.push(cleanedCoordinates);
@@ -58,7 +60,9 @@ export function formatMultiPolygonWithHeights(
     const blocks = coordinates.map((polygon: number[][][], index: number) => {
 
       const coordsWithZ: number[][][] = polygon.map((ring: number[][]) =>
-        ring.map((point: number[]) => [...point, 0])
+        ring.map((point: number[]) =>
+          point.length > 2 ? [...point] : [...point, 0]
+        )
       );
 
       return {

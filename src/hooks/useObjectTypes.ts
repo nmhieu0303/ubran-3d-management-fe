@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { api } from '@/services/api';
 import { API_ENDPOINTS } from '@/constants/api';
-import { urbanObjectTypes as fallbackTypes } from '@/services/mockData';
 
 export interface ObjectTypeDropdown {
   label: string;
@@ -77,24 +76,6 @@ export const useObjectTypes = (): UseObjectTypesState => {
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Failed to fetch object types';
         console.warn('⚠️ Failed to fetch object types, using fallback data:', errorMessage);
-
-        const fallbackData: ObjectTypeDropdown[] = fallbackTypes.map(type => ({
-          label: type.name,
-          value: type.code,
-        }));
-
-        const nowTimestamp = Date.now();
-        cachedData = fallbackData;
-        cacheTimestamp = nowTimestamp;
-        setData(fallbackData);
-        setError(null);
-
-        try {
-          localStorage.setItem(CACHE_KEY, JSON.stringify(fallbackData));
-          localStorage.setItem(`${CACHE_KEY}_timestamp`, nowTimestamp.toString());
-        } catch {
-          console.warn('Failed to store fallback data in localStorage');
-        }
       } finally {
         setLoading(false);
       }

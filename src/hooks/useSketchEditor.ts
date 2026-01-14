@@ -387,8 +387,10 @@ export const useSketchEditor = ({
 
     let editableGraphic: Graphic;
 
-    if (graphics.length > 1) {
-
+    if (graphics.length === 1 && graphics[0]?.geometry.type === 'mesh') {
+      editableGraphic = graphics[0].clone();
+    } else if (graphics.length > 1) {
+      const tierInfo: Array<{ baseZ: number; height: number }> = [];
       const allRings: number[][][] = [];
       let baseSymbol = graphics[0].symbol?.clone();
       let attributes = graphics[0].attributes;
@@ -406,8 +408,10 @@ export const useSketchEditor = ({
             allRings.push(ringWithZ);
           });
 
+          const baseElevation = graphic.attributes?.baseElevation || 0;
           const extrudeHeight = graphic.attributes?.extrudeHeight;
           if (extrudeHeight && typeof extrudeHeight === 'number') {
+            tierInfo.push({ baseZ: baseElevation, height: extrudeHeight });
             if (extrudeHeight > maxHeight) {
               maxHeight = extrudeHeight;
             }
@@ -423,8 +427,8 @@ export const useSketchEditor = ({
 
       if (baseSymbol && baseSymbol.type === 'polygon-3d') {
         (baseSymbol as any).symbolLayers.forEach((layer: any) => {
-          if (layer.type === 'extrude' && maxHeight > 0) {
-            layer.size = maxHeight;
+          if (layer.type === 'extrude') {
+            layer.size = tierInfo[0]?.height || maxHeight;
           }
         });
       }
@@ -432,7 +436,12 @@ export const useSketchEditor = ({
       editableGraphic = new Graphic({
         geometry: mergedPolygon,
         symbol: baseSymbol,
-        attributes: { ...attributes, maxHeight },
+        attributes: {
+          ...attributes,
+          maxHeight,
+          tierInfo,
+          isMergedMultiPolygon: true
+        },
       });
 
     } else {
