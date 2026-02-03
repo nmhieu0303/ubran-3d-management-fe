@@ -208,6 +208,11 @@ export const ObjectEditPanel: React.FC<ObjectEditPanelProps> = ({
   } = useLodPreview({
     view: sceneView,
     onTransform: handleTransformUpdate,
+    currentTransform: {
+      position: { x: parseFloat(position.x) || 0, y: parseFloat(position.y) || 0, z: parseFloat(position.z) || 0 },
+      rotation: { x: parseFloat(rotation.x) || 0, y: parseFloat(rotation.y) || 0, z: parseFloat(rotation.z) || 0 },
+      scale: { x: parseFloat(scale.x) || 1, y: parseFloat(scale.y) || 1, z: parseFloat(scale.z) || 1 },
+    },
   });
 
   const prevPreviewCoordinatesRef = useRef<string | null>(null);
@@ -956,8 +961,7 @@ export const ObjectEditPanel: React.FC<ObjectEditPanelProps> = ({
         perimeter,
         heights: heights,
       },
-    });
-    setIsDirty(true);
+    });    setIsDirty(true);
     handleCloseDrawer();
   };
 

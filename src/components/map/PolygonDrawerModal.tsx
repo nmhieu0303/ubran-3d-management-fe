@@ -202,16 +202,13 @@ export const PolygonDrawerModal: React.FC<PolygonDrawerModalProps> = ({
   }, []);
 
 
-  const getColorByGeometryType = useCallback((type: string, selected?: boolean): [number, number, number] => {
-    if (selected) {
-      return [0, 149, 217];
-    }
-    return [255, 165, 0];
+  const getColorByGeometryType = useCallback((): [number, number, number] => {
+    return [0, 149, 217];
   }, []);
 
 
   const createSymbolByType = useCallback((type: string, height?: number, selected?: boolean) => {
-    const color = getColorByGeometryType(type, selected);
+    const color = getColorByGeometryType();
 
     switch (type) {
       case 'Point':
@@ -431,8 +428,9 @@ export const PolygonDrawerModal: React.FC<PolygonDrawerModalProps> = ({
                 const graphic = result.graphic;
 
                 if (graphic !== selectedGraphicRef.current) {
-                  setSelectedGraphic(graphic);
+
                   selectedGraphicRef.current = graphic;
+                  setSelectedGraphic(graphic);
 
                   setInteractionMode('transform');
                   interactionModeRef.current = 'transform';
@@ -1001,6 +999,11 @@ export const PolygonDrawerModal: React.FC<PolygonDrawerModalProps> = ({
               setStats(combinedStats);
               setHasDrawing(true);
 
+              // Select the first graphic to show controls
+              if (graphics.length > 0) {
+                setSelectedGraphic(graphics[0]);
+              }
+
               view.goTo(graphics).catch((err) => console.error('Error zooming to polygons:', err));
             } catch (error) {
               console.error('Error processing initial coordinates:', error);
@@ -1445,21 +1448,25 @@ export const PolygonDrawerModal: React.FC<PolygonDrawerModalProps> = ({
             }}
           >
             <Typography variant="subtitle2" gutterBottom fontWeight="bold">
-              {geometryType === 'MultiPolygon' ? '🏢' : geometryType === 'Polygon' ? '📐' : geometryType === 'LineString' ? '📏' : '📍'} {geometryType} Controls
+               {geometryType} Controls
             </Typography>
 
             {/* Height Control - Only for MultiPolygon */}
             {geometryType === 'MultiPolygon' && (
               <>
                 <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-                  Height (Extrusion)
+                  Chiều cao (mét)
                 </Typography>
                 <TextField
-                  label="Height (meters)"
                   type="number"
                   value={polygonHeight}
                   onChange={(e) => {
-                    const value = parseFloat(e.target.value);
+                    const inputValue = e.target.value;
+                    if (inputValue === '' || inputValue === '-') {
+                      setPolygonHeight(0);
+                      return;
+                    }
+                    const value = parseFloat(inputValue);
                     if (!isNaN(value) && value >= 0) {
                       handleHeightChange(value);
                     }
@@ -1467,12 +1474,10 @@ export const PolygonDrawerModal: React.FC<PolygonDrawerModalProps> = ({
                   size="small"
                   fullWidth
                   sx={{ mt: 0.5 }}
-                  InputProps={{
-                    inputProps: {
-                      min: 0,
-                      max: 1000,
-                      step: 1,
-                    },
+                  inputProps={{
+                    min: 0,
+                    max: 1000,
+                    step: 1,
                   }}
                 />
               </>
@@ -1480,14 +1485,19 @@ export const PolygonDrawerModal: React.FC<PolygonDrawerModalProps> = ({
 
             {/* Z-Offset (Elevation) Control - For all types */}
             <Typography variant="caption" color="text.secondary" sx={{ mt: 2, display: 'block' }}>
-              Z-Offset (Base Elevation)
+             Độ cao (mét)
             </Typography>
             <TextField
-              label="Elevation (meters)"
               type="number"
               value={zOffset}
               onChange={(e) => {
-                const value = parseFloat(e.target.value);
+                const inputValue = e.target.value;
+                if (inputValue === '' || inputValue === '-') {
+                  setZOffset(0);
+                  handleZOffsetChange(0);
+                  return;
+                }
+                const value = parseFloat(inputValue);
                 if (!isNaN(value)) {
                   handleZOffsetChange(value);
                   const currentSelected = selectedGraphicRef.current;
@@ -1506,18 +1516,12 @@ export const PolygonDrawerModal: React.FC<PolygonDrawerModalProps> = ({
               size="small"
               fullWidth
               sx={{ mt: 0.5 }}
-              InputProps={{
-                inputProps: {
-                  min: -500,
-                  max: 500,
-                  step: 1,
-                },
+              inputProps={{
+                min: -500,
+                max: 500,
+                step: 1,
               }}
             />
-
-            <Alert severity="info" sx={{ mt: 2, py: 0.5 }}>
-              <Typography variant="caption">Z-offset for stacking polygons vertically</Typography>
-            </Alert>
           </Paper>
         )}
 

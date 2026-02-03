@@ -425,7 +425,7 @@ export const ObjectDetailPanel: React.FC<ObjectDetailPanelProps> = ({
                       {/* Properties Grid - 2 columns */}
                       {objectData.properties && (
                         <Grid container spacing={2}>
-                          {objectData.properties?.height && (
+                          {objectData?.height && (
                             <Grid item xs={6}>
                               <Box border="solid 2px #99A1AF" padding={1}>
                                 <Typography
@@ -435,23 +435,23 @@ export const ObjectDetailPanel: React.FC<ObjectDetailPanelProps> = ({
                                   Chiều cao
                                 </Typography>
                                 <Typography variant="body2" sx={{ fontWeight: 500, mt: 0.5 }}>
-                                  {objectData.properties.height}m
+                                  {objectData.height}m
                                 </Typography>
                               </Box>
                             </Grid>
                           )}
                           {/* Area */}
-                          {objectData.properties?.area && (
+                          {objectData?.area && (
                             <Grid item xs={6}>
                               <Box border="solid 2px #99A1AF" padding={1}>
                                 <Typography
                                   variant="caption"
                                   sx={{ color: 'text.secondary', fontWeight: 500 }}
                                 >
-                                  Diện tích pháp lệ
+                                  Diện tích
                                 </Typography>
                                 <Typography variant="body2" sx={{ fontWeight: 500, mt: 0.5 }}>
-                                  {objectData.properties.area} m2
+                                  {objectData.area} m2
                                 </Typography>
                               </Box>
                             </Grid>

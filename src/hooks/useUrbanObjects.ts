@@ -28,7 +28,7 @@ const getSymbolForObject = (obj: UrbanObject, lod: UrbanObjectLod): any => {
     case 'Point':
       return {
         type: 'simple-marker',
-        color: [0, 122, 255],
+        color: [0, 149, 217],
         size: '8px',
         outline: {
           color: [0, 0, 0],
@@ -42,7 +42,7 @@ const getSymbolForObject = (obj: UrbanObject, lod: UrbanObjectLod): any => {
           new PathSymbol3DLayer({
             profile: 'circle',
             width: 0.3,
-            material: { color: [0, 122, 255] },
+            material: { color: [0, 149, 217] },
           }),
         ],
       });
@@ -56,7 +56,7 @@ const getSymbolForObject = (obj: UrbanObject, lod: UrbanObjectLod): any => {
           {
             type: 'extrude',
             size: height,
-            material: { color: [229, 229, 229] },
+            material: { color: [0, 149, 217] },
             edges: {
               type: 'solid',
               color: [0, 0, 0],
@@ -69,7 +69,7 @@ const getSymbolForObject = (obj: UrbanObject, lod: UrbanObjectLod): any => {
     default:
       return {
         type: 'simple-fill',
-        color: [0, 122, 255],
+        color: [0, 149, 217],
       };
   }
 };
@@ -79,7 +79,8 @@ interface UseUrbanObjectsOptions {
   autoUpdate?: boolean;
   initialAltitude?: number;
   onObjectClick?: (objectId: string, graphic: __esri.Graphic) => void;
-  filteredObjectTypes?: string[]; // Filter objects by type - empty array means show all
+  filteredObjectTypes?: string[];
+  forceFixedLod?: 0 | 1 | 2 | 3 | null;
 }
 
 interface UseUrbanObjectsReturn {
@@ -109,6 +110,7 @@ export const useUrbanObjects = ({
   initialAltitude = 5000,
   onObjectClick,
   filteredObjectTypes = [],
+  forceFixedLod = null,
 }: UseUrbanObjectsOptions): UseUrbanObjectsReturn => {
   const [urbanObjects, setUrbanObjects] = useState<
     Array<UrbanObject & { currentLod: UrbanObjectLod }>
@@ -212,7 +214,8 @@ export const useUrbanObjects = ({
       setIsLoading(true);
 
       try {
-        const lodLevel = getLodForAltitude(altitude);
+        // Use forceFixedLod if set, otherwise calculate from altitude
+        const lodLevel = forceFixedLod !== null ? forceFixedLod : getLodForAltitude(altitude);
 
         // Fetch all urban objects from API (no pagination for map view)
         // But reuse cached response if already fetched
@@ -249,7 +252,7 @@ export const useUrbanObjects = ({
         setIsLoading(false);
       }
     },
-    [getLodForAltitude, convertApiResponseToUrbanObject]
+    [getLodForAltitude, convertApiResponseToUrbanObject, forceFixedLod]
   );
 
   // Khởi tạo layer
@@ -291,10 +294,15 @@ export const useUrbanObjects = ({
   }, [view]);
 
   useEffect(() => {
-    if (!view || !autoUpdate) return;
+    if (!view) return;
 
     const altitude = view.camera.position.z || initialAltitude;
     loadUrbanObjects(altitude);
+
+    // Only watch altitude changes if autoUpdate is enabled and not using fixed LOD
+    if (!autoUpdate || forceFixedLod !== null) {
+      return;
+    }
 
     let debounceTimer: ReturnType<typeof setTimeout>;
     let lastLodLevel: 0 | 1 | 2 | 3 | null = null;
@@ -318,7 +326,7 @@ export const useUrbanObjects = ({
         watchHandleRef.current.remove();
       }
     };
-  }, [view, autoUpdate, initialAltitude, getLodForAltitude, loadUrbanObjects]);
+  }, [view, autoUpdate, initialAltitude, getLodForAltitude, loadUrbanObjects, forceFixedLod]);
 
   useEffect(() => {
     if (!view || !layer || !onObjectClick) return;
@@ -467,9 +475,7 @@ export const useUrbanObjects = ({
                     heading: rotation.z || 0,
                     pitch: rotation.x || 0,
                     roll: rotation.y || 0,
-                    height: (obj.properties?.height || 100) * 2.5, // Scale up 2.5x
-                    width: (obj.properties?.width || 100) * (scale.x || 1),
-                    depth: (obj.properties?.depth || 100) * (scale.y || 1),
+                    height: (obj?.height || 100) * scale.z, // Scale up 2.5x
                   } as any,
                 ],
               } as any,
@@ -526,7 +532,8 @@ export const useUrbanObjects = ({
             const baseZ = firstPoint[2] !== undefined ? firstPoint[2] : 0;
 
             // Get height from heights array, or use object height as fallback
-            const extrudeHeight = lod.heights?.[index] ?? obj.properties?.height ?? 20;
+            // Ensure minimum height for hit testing in 3D SceneView
+            const extrudeHeight = Math.max(lod.heights?.[index] ?? obj.properties?.height ?? 20, 5);
 
             const ringsWithZ = polygonCoords.map((ring: any) =>
               ring.map((point: any) => (point.length === 2 ? [...point, baseZ] : point))
@@ -537,6 +544,7 @@ export const useUrbanObjects = ({
                 type: 'polygon',
                 rings: ringsWithZ,
                 hasZ: true,
+                spatialReference: { wkid: 4326 }, // REQUIRED: Specify coordinate system (WGS84)
               },
               attributes: {
                 id: `${obj.id}_tier${index}`,
@@ -582,6 +590,8 @@ export const useUrbanObjects = ({
               type: 'point',
               longitude: lod.geom.coordinates[0],
               latitude: lod.geom.coordinates[1],
+              z: lod.geom.coordinates[2] || 0,
+              spatialReference: { wkid: 4326 }, // REQUIRED: Specify coordinate system (WGS84)
             };
             symbol = {
               type: 'simple-marker',
@@ -593,6 +603,7 @@ export const useUrbanObjects = ({
             arcgisGeometry = {
               type: 'polyline',
               paths: [lod.geom.coordinates],
+              spatialReference: { wkid: 4326 }, // REQUIRED: Specify coordinate system (WGS84)
             };
             symbol = {
               type: 'simple-line',
@@ -607,6 +618,7 @@ export const useUrbanObjects = ({
               type: 'polygon',
               rings: ringsWithZ,
               hasZ: true,
+              spatialReference: { wkid: 4326 }, // REQUIRED: Specify coordinate system (WGS84)
             };
             // Use PolygonSymbol3D with FillSymbol3DLayer instead of simple-fill
             // This ensures proper rendering at any camera angle in 3D SceneView
@@ -618,7 +630,7 @@ export const useUrbanObjects = ({
                     color: [0, 0, 0, 0.8],
                     size: 1,
                   },
-                }),
+                } as any),
               ],
             });
           } else {
@@ -632,6 +644,7 @@ export const useUrbanObjects = ({
               name: obj.name,
               code: obj.code,
               typeId: obj.typeId,
+              parent_id: obj.id, // Also set parent_id for compatibility with hit test handler
               ...obj.properties,
             },
             symbol: symbol,
@@ -772,7 +785,7 @@ export const useUrbanObjects = ({
           if (layer.type === 'extrude') {
             // ExtrudeSymbol3DLayer (3D extruded polygons)
             if (layer.material) {
-              layer.material.color = isSelected ? [255, 255, 0] : [229, 229, 229];
+              layer.material.color = isSelected ? [255, 255, 0] : [0, 149, 217];
             }
             if (layer.edges) {
               layer.edges.color = isSelected ? [255, 200, 0] : [0, 0, 0];
@@ -783,7 +796,7 @@ export const useUrbanObjects = ({
             if (layer.material) {
               layer.material.color = isSelected
                 ? [255, 255, 0, 0.7]
-                : [100, 180, 255, 0.5];
+                : [0, 149, 217, 0.7];
             }
             if (layer.outline) {
               layer.outline.color = isSelected ? [255, 200, 0] : [0, 0, 0];
@@ -826,14 +839,14 @@ export const useUrbanObjects = ({
           }
         } else {
           // Restore original color with proper transparency
-          fillSymbol.color = [100, 180, 255, 0.5];
+          fillSymbol.color = [0, 149, 217, 0.7];
           if (fillSymbol.outline) {
             fillSymbol.outline.color = [0, 0, 0, 0.8];
             fillSymbol.outline.width = 1;
           }
         }
       } else if ('color' in symbol) {
-        (symbol as any).color = isSelected ? [255, 255, 0] : [0, 122, 255];
+        (symbol as any).color = isSelected ? [255, 255, 0] : [0, 149, 217];
       }
 
       graphic.symbol = symbol;

@@ -81,6 +81,11 @@ export const MapViewPage: React.FC = () => {
   const [altitude, setAltitude] = useState<number>(0);
   const [lod, setLod] = useState<string>(LOD_LEVELS.LOD0);
 
+  // LOD Mode state (auto vs fixed)
+  const [lodMode, setLodMode] = useState<'auto' | 'fixed'>('auto');
+  const [fixedLodLevel, setFixedLodLevel] = useState<0 | 1 | 2 | 3>(0);
+  const [lodModeChanged, setLodModeChanged] = useState(false);
+
   const viewRef = useRef<SceneView | null>(null);
   const [sceneView, setSceneView] = useState<SceneView | undefined>(undefined);
 
@@ -107,9 +112,10 @@ export const MapViewPage: React.FC = () => {
     removeObject,
   } = useUrbanObjects({
     view: sceneView,
-    autoUpdate: true,
+    autoUpdate: lodMode === 'auto', // Only auto-update when in auto mode
     initialAltitude: 5000,
     filteredObjectTypes: filteredObjectTypes,
+    forceFixedLod: lodMode === 'fixed' ? fixedLodLevel : null, // Use fixed LOD when in fixed mode
     onObjectClick: (objectId) => {
       const { editPanelOpen: isEditOpen, editingObjectId: currentEditingId } = editStateRef.current;
 
@@ -149,6 +155,23 @@ export const MapViewPage: React.FC = () => {
 
   useEffect(() => {
   }, [urbanObjects, currentLodLevel, isLoading, sceneView]);
+
+
+  const handleLodModeApply = useCallback(() => {
+
+    setLodModeChanged(true);
+  }, []);
+
+
+  useEffect(() => {
+    if (lodModeChanged && viewRef.current) {
+      const altitude = viewRef.current.camera.position.z;
+      if (altitude !== undefined) {
+        refresh();
+      }
+      setLodModeChanged(false);
+    }
+  }, [lodModeChanged, refresh]);
 
   const calculateZoomTarget = (object: UrbanObject) => {
     if (!object?.currentLod?.geom) return null;
@@ -343,14 +366,6 @@ export const MapViewPage: React.FC = () => {
       sketch.destroy();
     };
   }, [sceneView, transformEnabled]);
-
-  const handleTransformToggle = useCallback((enabled: boolean) => {
-    setTransformEnabled(enabled);
-
-    if (!enabled && sketchLayerRef.current) {
-      sketchLayerRef.current.removeAll();
-    }
-  }, []);
 
   const handleSearchClick = () => {
     setSearchAnchorEl(searchButtonRef.current);
@@ -601,7 +616,17 @@ export const MapViewPage: React.FC = () => {
         )}
       </Box>
 
-      <AltitudeLodBox altitude={altitude} lod={lod} isMobile={isMobile} />
+      <AltitudeLodBox
+        altitude={altitude}
+        lod={lod}
+        isMobile={isMobile}
+        lodMode={lodMode}
+        fixedLodLevel={fixedLodLevel}
+        currentLodLevel={currentLodLevel}
+        onLodModeChange={setLodMode}
+        onLodLevelChange={setFixedLodLevel}
+        onApply={handleLodModeApply}
+      />
 
       <SearchPanel
         open={searchPanelOpen}

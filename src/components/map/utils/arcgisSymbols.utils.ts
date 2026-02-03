@@ -9,11 +9,11 @@ export const create3DSymbol = (height: number): __esri.PolygonSymbol3D => {
       new ExtrudeSymbol3DLayer({
         size: height,
         material: {
-          color: [0, 122, 194, 0.8],
+          color: [0, 149, 217, 0.8],
         },
         edges: {
           type: 'solid',
-          color: [255, 255, 255, 0.8],
+          color: [0, 0, 0, 0.8],
           size: 1,
         },
       }),

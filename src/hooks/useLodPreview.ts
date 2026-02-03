@@ -29,9 +29,14 @@ export interface UseLodPreviewOptions {
     rotation: { x: number; y: number; z: number };
     scale: { x: number; y: number; z: number };
   }) => void;
+  currentTransform?: {
+    position?: { x: number; y: number; z: number };
+    rotation?: { x: number; y: number; z: number };
+    scale?: { x: number; y: number; z: number };
+  };
 }
 
-export const useLodPreview = ({ view, onTransform }: UseLodPreviewOptions) => {
+export const useLodPreview = ({ view, onTransform, currentTransform }: UseLodPreviewOptions) => {
   const previewLayerRef = useRef<GraphicsLayer | null>(null);
   const [isPreviewMode, setIsPreviewMode] = useState(false);
   const [previewLodLevel, setPreviewLodLevel] = useState<number | null>(null);
@@ -96,7 +101,7 @@ export const useLodPreview = ({ view, onTransform }: UseLodPreviewOptions) => {
             new FillSymbol3DLayer({
               material: { color: [...highlightColor, 0.7] },
               outline: {
-                color: [0, 100, 150],
+                color: [0, 0, 0],
                 size: 2,
               },
             }),
@@ -112,7 +117,7 @@ export const useLodPreview = ({ view, onTransform }: UseLodPreviewOptions) => {
               material: { color: highlightColor },
               edges: {
                 type: 'solid',
-                color: [0, 100, 150],
+                color: [0, 0, 0],
                 size: 1.5,
               },
             }),
@@ -226,10 +231,20 @@ export const useLodPreview = ({ view, onTransform }: UseLodPreviewOptions) => {
       const modelUrl = URL.createObjectURL(geometry.modelFile);
       modelBlobUrlRef.current = modelUrl;
 
+      // Initialize ObjectSymbol3DLayer with current transform values to preserve them
+      const modelScale = currentTransform?.scale || { x: 1, y: 1, z: 1 };
+      const modelRotation = currentTransform?.rotation || { x: 0, y: 0, z: 0 };
+
       const modelSymbol = new PointSymbol3D({
         symbolLayers: [
           new ObjectSymbol3DLayer({
             resource: { href: modelUrl },
+            width: modelScale.x * 100,
+            height: modelScale.y * 100,
+            depth: modelScale.z * 100,
+            heading: modelRotation.z,
+            tilt: modelRotation.x,
+            roll: modelRotation.y,
           }),
         ],
       });

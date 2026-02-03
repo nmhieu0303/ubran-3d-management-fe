@@ -111,19 +111,19 @@ export const ChangeHistoryPage: React.FC = () => {
     const labels: Record<string, string> = {
       users: 'Người dùng',
       urban_objects: 'Công trình đô thị',
-      assets: 'Tài sản',
+      attachments: 'Tệp đính kèm',
     };
     return labels[table] || table;
   };
 
-  const getTargetTableColor = (table: string): 'primary' | 'secondary' | 'info' | 'success' => {
+  const getTargetTableColor = (table: string): 'primary' | 'secondary' | 'warning' | 'success' => {
     switch (table) {
       case 'urban_objects':
         return 'primary';
       case 'users':
         return 'secondary';
-      case 'assets':
-        return 'info';
+      case 'attachments':
+        return 'warning';
       default:
         return 'primary';
     }
@@ -256,7 +256,7 @@ export const ChangeHistoryPage: React.FC = () => {
       options: [
         { label: 'Người dùng', value: 'users' },
         { label: 'Công trình đô thị', value: 'urban_objects' },
-        { label: 'Tài sản', value: 'assets' },
+        { label: 'Tệp đính kèm', value: 'attachments' },
       ],
     },
     {
